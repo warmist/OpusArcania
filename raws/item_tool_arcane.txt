@@ -1,0 +1,19 @@
+item_tool_arcane
+
+[OBJECT:ITEM]
+
+[ITEM_TOOL:TOOL_ARCANE_ORB]
+    [NAME:orb:orbs]
+    [VALUE:10]
+    [HARD_MAT]
+    [TILE:'O']
+    [SIZE:1]
+    [MATERIAL_SIZE:1]
+
+[ITEM_TOOL:TOOL_ARCANE_LENS]
+    [NAME:lens:lenses]
+    [VALUE:10]
+    [HARD_MAT]
+    [TILE:')']
+    [SIZE:1]
+    [MATERIAL_SIZE:1]
