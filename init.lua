@@ -3,6 +3,9 @@ dofile("hack/scripts/OpusArcania/buildings.lua")
 dofile("hack/scripts/OpusArcania/main.lua")
 events={}
 
+function worldLoaded()
+    loadWorkshopTypes()
+end
 function mapLoaded()
     --start event ticker
     genNodes()
@@ -15,6 +18,7 @@ function mapUnloaded()
 end
 events[SC_MAP_LOADED]=mapLoaded()
 events[SC_MAP_UNLOADED]=mapUnloaded()
+events[SC_WORLD_LOADED]=worldLoaded()
 function installHooks()
     require("plugins.eventful").onWorkshopFillSidebarMenu.arcane=shopDispatch
     --regen nodes, load node info on map load
@@ -34,6 +38,9 @@ function removeHooks()
     print("Unloading OpusArcania")
 end
 events[SC_WORLD_UNLOADED]=removeHooks()
+if dfhack.isWorldLoaded() then
+    worldLoaded()
+end
 if dfhack.isMapLoaded() then
     mapLoaded()
 end

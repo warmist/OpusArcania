@@ -130,7 +130,7 @@ function ShopViewer:onInput(keys)
         self:updateBuilding()
     end
 end
-customShops[getShop("ARCANE_VIEWER")]=ShopViewer
+
 ConnectorViewer=defclass(ConnectorViewer, CustomShopView)
 function ConnectorViewer:connectionStatus()
     return true, "Not connected"
@@ -161,7 +161,7 @@ function ConnectorViewer:onInput(keys)
         self:updateBuilding()
     end
 end
-customShops[getShop("ARCANE_BRIDGE1TO1")]=ConnectorViewer
+
 ManaView = defclass(ManaView, guidm.MenuOverlay)
 
 function ManaView:onShow()
@@ -335,4 +335,8 @@ function showMain(shop,call_native)
             ManaView():show()
         end
     end
+end
+function loadWorkshopTypes()
+    customShops[getShop("ARCANE_VIEWER")]=ShopViewer
+    customShops[getShop("ARCANE_BRIDGE1TO1")]=ConnectorViewer
 end
