@@ -6,14 +6,6 @@ A dfhack mod about magic.
 Installation
 ============
 
-TODO
+Put all files from raws to raws except for entity patch.txt. Copy from it to your entity of choice.
 
-Gameplay
-========
 
-TODO
-
-Editing
-=======
-
-TODO
