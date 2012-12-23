@@ -1,11 +1,9 @@
 OpusArcania
 ===========
 
-A dfhack mod about magic.
+A dfhack mod about magic. Needs "DFHack 0.34.11 r3" to work.
 
 Installation
 ============
 
-Put all files from raws to raws except for entity patch.txt. Copy from it to your entity of choice. All other files to hack/scripts/OpusArcania.
-
-
+Drop this directory into hack/scripts. Run "OpusArcania/install -i" and generate a new world. Each time you want to play it run "OpusArcania/init".

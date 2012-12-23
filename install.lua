@@ -1,5 +1,6 @@
 --install Opus Arcania
 args={...}
+--TODO: add check if already installed, add "-r"emove function (or uninstall)... Maybe generalize it for other mods.
 if args[1]~="install" and args[1]~='-i' then
     print("Usage: install -i|install [entity_id1] [entity_id2] ...\n","Warning: this is an experimental script, backup raws. Generate a new world to play")
     return
