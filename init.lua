@@ -1,6 +1,15 @@
-dofile("hack/scripts/OpusArcania/settings.lua")
-dofile("hack/scripts/OpusArcania/buildings.lua")
-dofile("hack/scripts/OpusArcania/main.lua")
+function execFile(fname)
+    local file,err=loadfile("hack/scripts/OpusArcania/"..fname,'t',_ENV)
+    if file==nil then
+        error(err)
+    else
+        return file()
+    end
+end
+execFile("settings.lua")
+execFile("buildings.lua")
+execFile("main.lua")
+
 events={}
 
 function worldLoaded()
@@ -9,11 +18,13 @@ end
 function mapLoaded()
     --start event ticker
     genNodes()
+    genMaterials()
     --check building info and rebuild graphs
 end
 function mapUnloaded()
     --stop event ticker
     nodelist={}
+    matlist={}
     --destroy graphs (optional)
 end
 events[SC_MAP_LOADED]=mapLoaded

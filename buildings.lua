@@ -2,12 +2,120 @@
 local utils = require 'utils'
 local gui = require 'gui'
 local guidm = require 'gui.dwarfmode'
+--[[
+p = p1;
+d = p2-p1;
+N = max(abs(d));
+s = d/N;
 
+We need to take N steps of size s, then round each of the floating-point positions found:
+
+disp(p1)
+for ii=1:N
+   p = p+s;
+   disp(round(p))
+end
+
+--]]
+function line(callback,x0, y0,z0, x1, y1,z1)
+    local dx,dy,dz
+    dx = x1-x0
+    dy = y1-y0
+    dz = z1-z0
+    local cx,cy,cz
+    cx=x0;cy=y0;cz=z0
+    local N=math.max(math.abs(dx),math.abs(dy),math.abs(dz))
+    local sx,sy,sz
+    sx=dx/N;sy=dy/N;sz=dz/N
+    for i=1,N do
+        cx=cx+sx
+        cy=cy+sy
+        cz=cz+sz
+        callback(math.floor(cx+0.5),math.floor(cy+0.5),math.floor(cz+0.5))
+    end
+end
 customShops={}
 function getShop(token)
     for k,v in pairs(df.global.world.raws.buildings.all) do
         if v.code==token then
             return v.id
+        end
+    end
+end
+acceptsArcane={}
+function isArcaneAcceptor(cbld)
+    if cbld:getType()==df.building_type.Workshop and cbld:getSubtype()==df.workshop_type.Custom then
+        return acceptsArcane[df.building_def.find(cbld:getCustomType()).code]
+    end
+end
+genRefType={"GraphConnections","ManaHold1","ManaHold2"}
+function getOrCreateGenRef(building,refType)
+    for k,ref in pairs(building.general_refs) do
+        if ref:getType()==df.general_ref_type.CREATURE then
+            if ref.anon_1==refType then
+                return ref
+            end
+        end
+    end
+    local ref=df.general_ref_creaturest:new()
+    ref.anon_1=refType
+    building.general_refs:insert('#',ref)
+    return ret
+end
+ManaHold = defclass(ManaHold)
+function ManaHold:init(args)
+    self.target=args.target
+end
+function ManaHold:get(manaType)--not building itself, items in it...
+    local ref
+    if manaType.id<5 then
+        ref=getOrCreateGenRef(self.target,genRefType.ManaHold1)
+        if manaType.id == 1 then
+            return ref.anon_2
+        elseif manaType.id == 2 then
+            return ref.anon_3
+        elseif manaType.id == 3 then
+            return ref.anon_4
+        else
+            return ref.anon_5
+        end
+    else
+        ref=getOrCreateGenRef(self.target,genRefType.ManaHold2)
+        if manaType.id == 5 then
+            return ref.anon_2
+        elseif manaType.id == 6 then
+            return ref.anon_3
+        elseif manaType.id == 7 then
+            return ref.anon_4
+        else
+            return ref.anon_5
+        end
+    end
+end
+function ManaHold:set(manaType,value)
+    local ref
+    --todo check if overcharge happens
+    if manaType.id<5 then
+        ref=getOrCreateGenRef(self.target,genRefType.ManaHold1)
+        if manaType.id == 1 then
+            ref.anon_2=value
+        elseif manaType.id == 2 then
+            ref.anon_3=value
+        elseif manaType.id == 3 then
+            ref.anon_4=value
+        else
+            ref.anon_5=value
+        end
+    else
+        ref=getOrCreateGenRef(self.target,genRefType.ManaHold2)
+        if manaType.id == 5 then
+            ref.anon_2=value
+        elseif manaType.id == 6 then
+            ref.anon_3=value
+        elseif manaType.id == 7 then
+            ref.anon_4=value
+        else
+            ref.anon_5=value
         end
     end
 end
@@ -132,6 +240,38 @@ function ShopViewer:onInput(keys)
 end
 
 ConnectorViewer=defclass(ConnectorViewer, CustomShopView)
+function ConnectorViewer:init(args)
+    local nodesinrange={}
+    local bld=df.global.world.selected_building
+    local center=utils.getBuildingCenter(bld)
+    local con_sq=CONNECTOR_RANGE*CONNECTOR_RANGE
+    for k,v in pairs(nodelist) do
+        local dx,dy,dz
+        dx=center.x-v.pos.x
+        dy=center.y-v.pos.y
+        dz=center.z-v.pos.z
+        
+        if dx*dx+dy*dy+dz*dz<con_sq then
+            table.insert(nodesinrange,v)
+        end
+    end
+    local bldinrange={}
+    for k,cbld in pairs(df.global.world.buildings.all) do
+        if cbld~=bld and isArcaneAcceptor(cbld) then
+            local dx,dy,dz
+            local pos=utils.getBuildingCenter(cbld)
+            dx=center.x-pos.x
+            dy=center.y-pos.y
+            dz=center.z-pos.z
+            if dx*dx+dy*dy+dz*dz<con_sq  then
+                table.insert(bldinrange,cbld)
+            end
+        end
+    end
+    self.nodes=nodesinrange
+
+    self.buildings=bldinrange
+end
 function ConnectorViewer:connectionStatus()
     return true, "Not connected"
 end
@@ -141,8 +281,10 @@ function ConnectorViewer:onRenderBody(dc)
     local ok, msg=self:connectionStatus()
     if ok then
         dc:seek(1,3):string(msg)
-        dc:seek(1,4):key('CUSTOM_A'):string(": make connection")
-        dc:seek(1,6):string(string.format("Nodes in range:",#nodelist))
+        dc:seek(1,4):key('CUSTOM_A'):string(": connect to node")
+        dc:seek(1,5):key('CUSTOM_B'):string(": connect to building")
+        dc:seek(1,7):string(string.format("Nodes in range:%d",#self.nodes))
+        dc:seek(1,8):string(string.format("Arcane acceptors in range:%d",#self.buildings))
     else
         dc:seek(1,3):string(msg)
     end
@@ -220,15 +362,26 @@ function ManaView:renderNode(dc,node,screenpos)
         end
     end
 end
+function ManaView:renderLine(dc,x,y,z)
+    local chars={'>','#','<'}
+    if z>=-1 and z<=1 then
+        dc:seek(x,y):char(chars[z+2])
+    end
+end
 function ManaView:onRenderNodes(dc)
     local view = self:getViewport()
     local map = self.df_layout.map
     local map_dc = gui.Painter.new(map)
+    local cp=view:tileToScreen(df.global.cursor)
+    
     for k,v in ipairs(nodelist) do
         local p=view:tileToScreen(v.pos)
+        
         --print((p.x+p.y+dfhack.getTickCount()/1000)%#tilemess+1)
         self:renderNode(map_dc,v,p)
-        
+        if k==1 then
+            line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
+        end
     end
     local cursor = guidm.getCursorPos()
     if cursor then
@@ -311,7 +464,7 @@ function ManaView:onInput(keys)
     end
 end
 function getShopWindow(shop)
-    if shop:getType()==df.building_type.Workshop and shop:getSubtype()==df.workshop_type.Custom then
+    if shop:getType()==df.building_type.Workshop and shop:getSubtype()==df.workshop_type.Custom and shop:getBuildStage()==shop:getMaxBuildStage() then
         return customShops[shop:getCustomType()]
     end
 end
@@ -328,7 +481,6 @@ function shopDispatch(shop, call_native)
 end
 function showMain(shop,call_native)
     if shop:getType()==df.building_type.Workshop and shop:getSubtype()==df.workshop_type.Custom then
-        --check if correct building type
         print(shop:getCustomType(),dfhack.gui.getCurFocus())
         local valid_focus="dwarfmode/QueryBuilding/Some"
         if string.sub(dfhack.gui.getCurFocus(),1,#valid_focus)==valid_focus then
@@ -339,4 +491,6 @@ end
 function loadWorkshopTypes()
     customShops[getShop("ARCANE_VIEWER")]=ShopViewer
     customShops[getShop("ARCANE_BRIDGE1TO1")]=ConnectorViewer
+    acceptsArcane["ARCANE_VIEWER"]=true
+    acceptsArcane["ARCANE_BRIDGE1TO1"]=true
 end
