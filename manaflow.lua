@@ -111,7 +111,7 @@ function addManaItem(item,mana,manaType)
             return ret,destroyed 
         else
             hold:burn()
-            item:addWear(WEAR_OVERCHARGE,true,true) 
+            item:addWear(WEAR_OVERCHARGE+(over/5)*WEAR_MULTIPLIER,true,true) 
             return over,false
         end
     else
@@ -142,10 +142,173 @@ function simulateFlowItem(item,manaIn,manaType,disipate) -- normal flow a->b thr
     areaflow=areaflow+overflow*(1-persist*PERSIST_OVERFLOW) --overflow thats not collected gets radiated into the area
     print("Radiated mana:",areaflow)
     if destroyed or disipate then
-        --effectManaOutflowItem(item,areaflow+flowout)
+        effectManaOutflowItem(item,areaflow+flowout,manaType)
         return 0
     else
-        --effectManaOutflowItem(item,areaflow)
+        effectManaOutflowItem(item,areaflow,manaType)
         return flowout
     end
+end
+
+function manaFlow(node,amount)
+    --[[if #node.outputs==0 then
+        return
+    end]]
+    local manaType=node.nodeType
+    --local con=graph:find({id=node.id,is_node=true})
+    for k,v in pairs(node.outputs) do
+        print("Flowing to:",k)
+        local build=df.building.find(k)
+        
+        if build~=nil and getFlowFunction(build) then
+            print("Comencing:",k)
+            comenceFlow(build,amount,manaType)
+        else
+            print("culling removed building:",k)
+            graph:remove({id=node.id,is_node=true},{id=k,is_node=false})
+        end
+    end
+end
+--connection ={from={is_node,id},to={is_node,id}}
+connectionGraph=defclass(connectionGraph)
+function connectionGraph:getNext(building)
+    local ref=getGenRef(building,genRefType.GraphConnections)
+    if ref then
+        if (ref.anon_4==connectionType.Node or ref.anon_4==connectionType.Building) and ref.anon_5>0 then
+            local to={is_node=(ref.anon_4==connectionType.Node),id=ref.anon_5}
+            return to
+        end
+    end    
+end
+function connectionGraph:connectFromNode(building,node_id)
+    node_id=node_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_2=connectionType.Node
+    ref.anon_3=node_id
+end
+function connectionGraph:connectToBuilding(building,building_id)
+    building_id=building_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_4=connectionType.Building
+    ref.anon_5=building_id
+end
+function connectionGraph:connectToNode(building,node_id)
+    node_id=node_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_4=connectionType.Node
+    ref.anon_5=node_id
+end
+function connectionGraph:init(args)
+    self:rebuild()
+end
+function connectionGraph:rebuild()
+    self.graph={}
+    for k,v in pairs(df.global.world.buildings.all) do
+        local ref=getGenRef(v,genRefType.GraphConnections)
+        
+        if ref then
+            
+            if (ref.anon_2==connectionType.Node or ref.anon_2==connectionType.Building) and ref.anon_3>0 then
+                local from={is_node=(ref.anon_2==connectionType.Node),id=ref.anon_3}
+                local to={is_node=false,id=v.id}
+                if not self:add(from,to) then
+                    ref.anon_2=-1
+                end
+            end
+            if (ref.anon_4==connectionType.Node or ref.anon_4==connectionType.Building) and ref.anon_5>0 then
+                local to={is_node=(ref.anon_4==connectionType.Node),id=ref.anon_5}
+                local from={is_node=false,id=v.id}
+                if not self:add(from,to)then
+                    ref.anon_4=-1
+                end
+            end
+            
+        end
+    end
+end
+function connectionGraph:add(from,to)
+    table.insert(self.graph,{from=from,to=to})
+    if from.is_node then
+        local curNode=nodelist[from.id]
+        if to.is_node then
+            error("Invalid connection, both from and to is node")
+        else
+            local to_build=df.building.find(to.id)
+            if to_build==nil then return false end
+            self:connectFromNode(to_build,from.id)
+            curNode.outputs[to.id]=true
+        end
+    else
+        local curBuilding=df.building.find(from.id)
+        if curBuilding==nil then return false end
+        if to.is_node then
+            self:connectToNode(curBuilding,to.id)
+        else
+            local trg_build=df.building.find(to.id)
+            if trg_build==nil then return false end
+            self:connectToBuilding(curBuilding,to.id)
+            self:connectToBuilding(trg_build,curBuilding.id)
+        end
+    end
+    return true
+end
+function connectionGraph:match(connection,from,to)
+    if from~=nil then
+        if connection.from.is_node~=from.is_node then
+            return false
+        end
+        if connection.from.id~=from.id then
+            return false
+        end
+    end
+    if to~=nil then
+        if connection.to.is_node~=to.is_node then
+            return false
+        end
+        if connection.to.id~=to.id then
+            return false
+        end
+    end
+    return true
+end
+function connectionGraph:remove(from,to)
+    local con,key=self:find(from,to)
+    if key==nil then return end
+    table.remove(self.graph,key)
+    if con.from.is_node then
+        local curNode=nodelist[con.from.id]
+        if con.to.is_node then
+            --why?
+            error("Invalid connection, both from and to is node")
+        else
+            if df.building.find(con.to.id)~=nil then
+                self:connectFromNode(df.building.find(con.to.id))
+            end
+            curNode.outputs[con.to.id]=nil
+        end
+    else
+        local curBuilding=df.building.find(con.from.id)
+        if con.to.is_node then
+            if curBuilding then
+                self:connectToNode(curBuilding)
+            end
+        else
+            if curBuilding then
+                self:connectToBuilding(curBuilding)
+            end
+            if df.building.find(con.to.id) then
+                self:connectToBuilding(df.building.find(con.to.id))
+            end
+        end
+    end
+end
+function connectionGraph:find(from,to)
+    for k,v in pairs(self.graph) do
+        if self:match(v,from,to) then
+            return v,k
+        end
+    end
+end
+function genGraph()
+    graph=connectionGraph()
 end

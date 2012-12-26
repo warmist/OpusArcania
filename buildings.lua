@@ -18,24 +18,7 @@ for ii=1:N
 end
 
 --]]
-function connectFromNode(building,node_id)
-    node_id=node_id or -1
-    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
-    ref.anon_2=connectionType.Node
-    ref.anon_3=node_id
-end
-function connectToBuilding(building,building_id)
-    building_id=building_id or -1
-    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
-    ref.anon_4=connectionType.Building
-    ref.anon_5=building_id
-end
-function connectToNode(building,node_id)
-    node_id=node_id or -1
-    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
-    ref.anon_4=connectionType.Node
-    ref.anon_5=node_id
-end
+
 function line(callback,x0, y0,z0, x1, y1,z1)
     local dx,dy,dz
     dx = x1-x0
@@ -62,7 +45,7 @@ function getShop(token)
     end
 end
 acceptsArcane={}
-function isArcaneAcceptor(cbld)
+function getFlowFunction(cbld)
     if cbld:getType()==df.building_type.Workshop and cbld:getSubtype()==df.workshop_type.Custom then
         return acceptsArcane[df.building_def.find(cbld:getCustomType()).code]
     end
@@ -84,13 +67,14 @@ function hasArcanist()
     local ent=df.global.ui.main.fortress_entity
     local pos_id
     for _,v in pairs(ent.positions.own) do
-        if v.code=="RUNEMASTER" then --TODO ARCANIST
+        if v.code=="ARCANIST" then --TODO ARCANIST
             pos_id=v.id
             break
         end
     end
     if pos_id == nil then
-        qerror("entity does not have arcanist position")
+        --qerror("entity does not have arcanist position")
+        return nil
     end
     for _,v in pairs(ent.positions.assignments) do
         if v.position_id==pos_id then
@@ -223,15 +207,15 @@ function ConnectorViewer:readConnection()
         return
     end
     if ref.anon_2==connectionType.Node then
-        con.from=nodelist[ref.anon_3]
+        con.from={id=ref.anon_3,is_node=true,node=nodelist[ref.anon_3]}
     end
     if ref.anon_5<1 then
         con.to=nil
     else
         if ref.anon_4==connectionType.Node then
-            con.to={node=nodelist[ref.anon_5],is_node=true}
+            con.to={id=ref.anon_5,is_node=true,node=nodelist[ref.anon_5]}
         elseif ref.anon_4==connectionType.Building then
-            con.to={build=df.building.find(ref.anon_5),is_node=false}
+            con.to={id=ref.anon_5,is_node=false,build=df.building.find(ref.anon_5)}
         end
     end
     self.connections=con
@@ -256,7 +240,7 @@ function ConnectorViewer:init(args)
     end
     local bldinrange={}
     for k,cbld in pairs(df.global.world.buildings.all) do
-        if cbld~=bld and isArcaneAcceptor(cbld) then
+        if cbld~=bld and getFlowFunction(cbld) then
             local dx,dy,dz
             local pos=utils.getBuildingCenter(cbld)
             dx=center.x-pos.x
@@ -269,8 +253,6 @@ function ConnectorViewer:init(args)
     end
     self.nodes=nodesinrange
     self.buildings=bldinrange
-    self.from=nil
-    self.to=nil
     local con_from={{text="Nothing"}}
     local con_to={{text="Nothing"}}
     for k,v in pairs(nodesinrange) do
@@ -306,21 +288,25 @@ function ConnectorViewer:init(args)
 end
 function ConnectorViewer:setFrom(index,choice)
     self.curNode=nil --choice.node
+    if self.connections and self.connections.from then
+        graph:remove(self.connections.from,{id=self.building.id,is_node=false})
+    end
     if choice.text~="Nothing" then
-        connectFromNode(self.building,choice.node.id)
-    else
-        connectFromNode(self.building,-1)
+        graph:add({id=choice.node.id,is_node=true},{id=self.building.id,is_node=false})
     end
     self:readConnection()
     self:mainScreen()
 end
 function ConnectorViewer:setTo(index,choice)
-    if choice.text=="Nothing" then
-        connectToNode(self.building,-1)
-    elseif choice.is_node then
-        connectToNode(self.building,choice.node.id)
-    elseif not choice.is_node then
-        connectToBuilding(self.building,choice.build.id)
+    if self.connections and self.connections.to then
+        graph:remove({id=self.building.id,is_node=false},self.connections.to)
+    end
+    if choice.text~="Nothing" then
+        if choice.is_node then
+            graph:add({id=self.building.id,is_node=false},{id=choice.node.id,is_node=choice.is_node})
+        else
+            graph:add({id=self.building.id,is_node=false},{id=choice.build.id,is_node=choice.is_node})
+        end
     end
     self:readConnection()
     self:mainScreen()
@@ -387,15 +373,15 @@ function ConnectorViewer:onRenderBody(dc)
         renderNode(map_dc,self.curNode,p)
     end
     local cp=view:tileToScreen(utils.getBuildingCenter(self.building))
-    if self.connections.from~=nil then
-        local p=view:tileToScreen(self.connections.from.pos)
-        renderNode(map_dc,self.connections.from,p)
+    if self.connections.from~=nil and self.connections.from.node~=nil  then
+        local p=view:tileToScreen(self.connections.from.node.pos)
+        renderNode(map_dc,self.connections.from.node,p)
         line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
     end
     if self.connections.to~=nil then
         if self.connections.to.is_node then
-            local p=view:tileToScreen(self.connections.to.pos)
-            renderNode(map_dc,self.connections.to,p)
+            local p=view:tileToScreen(self.connections.to.node.pos)
+            renderNode(map_dc,self.connections.to.node,p)
             line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
         else
             local p=view:tileToScreen(utils.getBuildingCenter(self.connections.to.build))
@@ -509,6 +495,7 @@ function ManaView:onRenderBody(dc)
             dc:seek(1,3+k):string(v)
         end
     end
+    
     -- existing connections
     dc:seek(1,dc.height-1):pen(COLOR_WHITE)
     dc:key('LEAVESCREEN'):string(": Back, ")
@@ -564,9 +551,32 @@ function ManaView:onInput(keys)
         self:sendInputToParent('LEAVESCREEN')
     --elseif keys.SELECT then
         --self:showCursor(self.cursor~=nil)
+    elseif keys.CUSTOM_Q then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Fire
+       end
+    elseif keys.CUSTOM_W then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Water
+       end
+    elseif keys.CUSTOM_E then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Blood
+       end
+    elseif keys.CUSTOM_R then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Stone
+       end
+    elseif keys.CUSTOM_T then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Death
+       end
+    elseif keys.CUSTOM_Y then
+       if self.cur_node then
+            self.cur_node.nodeType=nodeTypes.Energy
+       end
     elseif self:simulateCursorMovement(keys) then
         self:updateNode()
-        --self:updateBuilding()
     end
 end
 function getShopWindow(shop)
@@ -578,25 +588,21 @@ function shopDispatch(shop, call_native)
     local shopWindow=getShopWindow(shop)
     if shopWindow then
         --check if correct building type
-        print(shop:getCustomType(),dfhack.gui.getCurFocus())
         local valid_focus="dwarfmode/QueryBuilding/Some"
         if string.sub(dfhack.gui.getCurFocus(),1,#valid_focus)==valid_focus then
             shopWindow():show()
         end
     end
 end
-function showMain(shop,call_native)
-    if shop:getType()==df.building_type.Workshop and shop:getSubtype()==df.workshop_type.Custom then
-        print(shop:getCustomType(),dfhack.gui.getCurFocus())
-        local valid_focus="dwarfmode/QueryBuilding/Some"
-        if string.sub(dfhack.gui.getCurFocus(),1,#valid_focus)==valid_focus then
-            ManaView():show()
-        end
-    end
-end
+
 function loadWorkshopTypes()
     customShops[getShop("ARCANE_VIEWER")]=OrbViewer
     customShops[getShop("ARCANE_BRIDGE1TO1")]=ConnectorViewer
-    acceptsArcane["ARCANE_VIEWER"]=true
-    acceptsArcane["ARCANE_BRIDGE1TO1"]=true
+    --acceptsArcane["ARCANE_VIEWER"]=true
+    acceptsArcane["ARCANE_BRIDGE1TO1"]=flowBuilding
+    acceptsArcane["ARCANE_BRIDGE1TOGAP1"]=function (building,mana,manaType) return flowBuilding(building,mana,manaType,true) end
+    acceptsArcane["ARCANE_BRIDGE1TO0"]=flowBuilding
+end
+function reactionDispatch(reaction,unit,items,reagents,items_out,call_native)
+    
 end

@@ -25,7 +25,7 @@ function placeNode(rnd,block_x,block_y,z_min,z_max,id)
     local ntype
     ntype=rnd:pick{nodeTypes.Fire,nodeTypes.Water,nodeTypes.Blood,nodeTypes.Stone,nodeTypes.Death,nodeTypes.Energy}
     local size=math.floor(rnd:get(3,15))
-    table.insert(nodelist,{pos=pos,nodeType=ntype,size=size,id=id})
+    table.insert(nodelist,{pos=pos,nodeType=ntype,size=size,id=id,outputs={}})
 end
 function genNodes()
     nodelist={}
@@ -107,6 +107,9 @@ function genStone(gen,material)
         ret[3]=ret[3]*ORE_DAMPENING
         return ret
     elseif material.material.flags.IS_STONE then
+        ret[1]=gen:get(ret[1]*0.75,ret[1]*1.25)
+        ret[2]=gen:get(ret[2]*0.75,ret[2]*1.25)
+        ret[3]=gen:get(ret[3]*0.75,ret[3]*1.25)
         return ret
     else
         return {0,0,0}

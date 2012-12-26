@@ -30,7 +30,7 @@ function patchEntity(entity_file,entity_name)
     entityFile:close()
 end
 print("installing...")
-local filelist={"building_arcane.txt","item_tool_arcane.txt"}
+local filelist={"building_arcane.txt","item_tool_arcane.txt","reaction_arcane.txt"}
 for k,v in pairs(filelist) do
         copyFile(dfhack.getHackPath().."scripts/OpusArcania/raws/"..v,dfhack.getDFPath().."/raw/objects/"..v)
 end
