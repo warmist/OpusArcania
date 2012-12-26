@@ -9,6 +9,7 @@ end
 execFile("settings.lua")
 execFile("buildings.lua")
 execFile("main.lua")
+execFile("manaflow.lua")
 
 events={}
 

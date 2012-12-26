@@ -19,18 +19,19 @@ function makeSeed(inputseed,block_x,block_y)
     out_seed=bit32.bxor(bit32.rrotate(out_seed,8) ,block_y)
     return out_seed
 end
-function placeNode(rnd,block_x,block_y,z_min,z_max)
+function placeNode(rnd,block_x,block_y,z_min,z_max,id)
     local pos={x=rnd:get(block_x*16,block_x*16+16),
         y=rnd:get(block_y*16,block_y*16+16),z=rnd:get(z_min,z_max)}
     local ntype
     ntype=rnd:pick{nodeTypes.Fire,nodeTypes.Water,nodeTypes.Blood,nodeTypes.Stone,nodeTypes.Death,nodeTypes.Energy}
     local size=math.floor(rnd:get(3,15))
-    table.insert(nodelist,{pos=pos,nodeType=ntype,size=size})
+    table.insert(nodelist,{pos=pos,nodeType=ntype,size=size,id=id})
 end
 function genNodes()
     nodelist={}
     local myseed=hashString(df.global.world.worldgen.worldgen_parms.seed)
     local call_count=0
+    local id=1
     for bx=0,df.global.world.map.x_count_block-1 do
     for by=0,df.global.world.map.y_count_block-1 do
         local newseed=makeSeed(myseed+6,bx+df.global.world.map.region_x*16,by+df.global.world.map.region_y*16)
@@ -39,7 +40,8 @@ function genNodes()
         
         for i=0,df.global.world.map.z_count_block-1,NODE_Z_STEP do
             if rand:get() < NODE_CHANCE then
-                placeNode(rand,bx,by,i,i+NODE_Z_STEP)
+                placeNode(rand,bx,by,i,i+NODE_Z_STEP,id)
+                id=id+1
             end
             call_count=call_count+1
         end
@@ -114,7 +116,6 @@ function genMetal(gen,material)
     local ret=copyall(METAL_DEFAULT)
     --todo add adamantine and/or other deep metals.
     if METAL_SPECIAL>gen:get() then --todo something more interesting, maybe special if have something...
-        
         ret[1]=gen:get(0,50)
         ret[2]=gen:get(0,50)
         ret[3]=gen:get(0,50)
@@ -146,7 +147,6 @@ function genMaterials()
     for k,v in pairs(df.global.world.raws.inorganics) do
         if v.material.flags.IS_METAL then
             inorganics[k]=genMetal(rand,v)
-            
         end
     end
     for k,v in pairs(df.global.world.raws.inorganics) do

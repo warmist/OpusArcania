@@ -2,6 +2,7 @@
 local utils = require 'utils'
 local gui = require 'gui'
 local guidm = require 'gui.dwarfmode'
+local widgets =require 'gui.widgets'
 --[[
 p = p1;
 d = p2-p1;
@@ -17,6 +18,24 @@ for ii=1:N
 end
 
 --]]
+function connectFromNode(building,node_id)
+    node_id=node_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_2=connectionType.Node
+    ref.anon_3=node_id
+end
+function connectToBuilding(building,building_id)
+    building_id=building_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_4=connectionType.Building
+    ref.anon_5=building_id
+end
+function connectToNode(building,node_id)
+    node_id=node_id or -1
+    local ref=getOrCreateGenRef(building,genRefType.GraphConnections)
+    ref.anon_4=connectionType.Node
+    ref.anon_5=node_id
+end
 function line(callback,x0, y0,z0, x1, y1,z1)
     local dx,dy,dz
     dx = x1-x0
@@ -48,77 +67,8 @@ function isArcaneAcceptor(cbld)
         return acceptsArcane[df.building_def.find(cbld:getCustomType()).code]
     end
 end
-genRefType={"GraphConnections","ManaHold1","ManaHold2"}
-function getOrCreateGenRef(building,refType)
-    for k,ref in pairs(building.general_refs) do
-        if ref:getType()==df.general_ref_type.CREATURE then
-            if ref.anon_1==refType then
-                return ref
-            end
-        end
-    end
-    local ref=df.general_ref_creaturest:new()
-    ref.anon_1=refType
-    building.general_refs:insert('#',ref)
-    return ret
-end
-ManaHold = defclass(ManaHold)
-function ManaHold:init(args)
-    self.target=args.target
-end
-function ManaHold:get(manaType)--not building itself, items in it...
-    local ref
-    if manaType.id<5 then
-        ref=getOrCreateGenRef(self.target,genRefType.ManaHold1)
-        if manaType.id == 1 then
-            return ref.anon_2
-        elseif manaType.id == 2 then
-            return ref.anon_3
-        elseif manaType.id == 3 then
-            return ref.anon_4
-        else
-            return ref.anon_5
-        end
-    else
-        ref=getOrCreateGenRef(self.target,genRefType.ManaHold2)
-        if manaType.id == 5 then
-            return ref.anon_2
-        elseif manaType.id == 6 then
-            return ref.anon_3
-        elseif manaType.id == 7 then
-            return ref.anon_4
-        else
-            return ref.anon_5
-        end
-    end
-end
-function ManaHold:set(manaType,value)
-    local ref
-    --todo check if overcharge happens
-    if manaType.id<5 then
-        ref=getOrCreateGenRef(self.target,genRefType.ManaHold1)
-        if manaType.id == 1 then
-            ref.anon_2=value
-        elseif manaType.id == 2 then
-            ref.anon_3=value
-        elseif manaType.id == 3 then
-            ref.anon_4=value
-        else
-            ref.anon_5=value
-        end
-    else
-        ref=getOrCreateGenRef(self.target,genRefType.ManaHold2)
-        if manaType.id == 5 then
-            ref.anon_2=value
-        elseif manaType.id == 6 then
-            ref.anon_3=value
-        elseif manaType.id == 7 then
-            ref.anon_4=value
-        else
-            ref.anon_5=value
-        end
-    end
-end
+
+
 function wordWrap(inputstr,len,token) --if token==nil then split in the middle of word
     local ret={}
     if token~=nil then
@@ -146,6 +96,23 @@ function hasArcanist()
         if v.position_id==pos_id then
             if v.histfig ~= -1 then
                 return v.histfig
+            end
+        end
+    end
+end
+function renderNode(dc,node,screenpos)
+    local col=node.nodeType.color
+    local dz=screenpos.z --delta z
+    if math.abs(dz)<node.size then
+        for i=-node.size,node.size do
+            for j=-node.size,node.size do
+                if math.abs(i)+math.abs(j)+math.abs(dz)<node.size then
+                    local tx,ty
+                    tx=screenpos.x+i
+                    ty=screenpos.y+j
+                    local tile=tilemess[math.floor(tx+ty+dfhack.getTickCount()/100+tx*ty/5)%#tilemess+1]
+                    dc:seek(tx,ty):char(tile, col)
+                end
             end
         end
     end
@@ -189,6 +156,8 @@ function CustomShopView:updateBuilding()
             self:dismiss()
             if getShopWindow(best_build)~=nil then
                 getShopWindow(best_build)():show(self.parent)
+            else
+                best_build:fillSidebarMenu()
             end
             return
         end
@@ -198,15 +167,15 @@ function CustomShopView:updateBuilding()
         --show it's menu...
     end
 end
-ShopViewer = defclass(ShopViewer, CustomShopView)
-function ShopViewer:arcanistStatus()
+OrbViewer = defclass(OrbViewer, CustomShopView)
+function OrbViewer:arcanistStatus()
     if not hasArcanist() then
         return false, "Arcanist is not assigned"
     else  --check office
         return true, "Arcanist is present"
     end
 end
-function ShopViewer:onRenderBody(dc)
+function OrbViewer:onRenderBody(dc)
     dc:clear()
     dc:pen(COLOR_WHITE):seek(1,1):string("Arcane viewer"):pen(COLOR_GREY)
     local ok, msg=self:arcanistStatus()
@@ -222,7 +191,7 @@ function ShopViewer:onRenderBody(dc)
     dc:seek(1, math.max(dc:cursorY(), 21)):pen(COLOR_WHITE)
     dc:key('LEAVESCREEN'):string(": Back, ")
 end
-function ShopViewer:onInput(keys)
+function OrbViewer:onInput(keys)
     if keys.LEAVESCREEN then
         self:dismiss()
         self:sendInputToParent('LEAVESCREEN')
@@ -240,9 +209,39 @@ function ShopViewer:onInput(keys)
 end
 
 ConnectorViewer=defclass(ConnectorViewer, CustomShopView)
+function ConnectorViewer:renderLine(dc,x,y,z)
+    local chars={'>','*','<'}
+    if z>=-1 and z<=1 then
+        dc:seek(x,y):char(chars[z+2])
+    end
+end
+function ConnectorViewer:readConnection()
+    local con={}
+    local ref=getGenRef(self.building,genRefType.GraphConnections)
+    if ref== nil then
+        self.connections=con
+        return
+    end
+    if ref.anon_2==connectionType.Node then
+        con.from=nodelist[ref.anon_3]
+    end
+    if ref.anon_5<1 then
+        con.to=nil
+    else
+        if ref.anon_4==connectionType.Node then
+            con.to={node=nodelist[ref.anon_5],is_node=true}
+        elseif ref.anon_4==connectionType.Building then
+            con.to={build=df.building.find(ref.anon_5),is_node=false}
+        end
+    end
+    self.connections=con
+end
 function ConnectorViewer:init(args)
     local nodesinrange={}
     local bld=df.global.world.selected_building
+    self.building=bld
+    
+    self:readConnection()
     local center=utils.getBuildingCenter(bld)
     local con_sq=CONNECTOR_RANGE*CONNECTOR_RANGE
     for k,v in pairs(nodelist) do
@@ -269,39 +268,170 @@ function ConnectorViewer:init(args)
         end
     end
     self.nodes=nodesinrange
-
     self.buildings=bldinrange
+    self.from=nil
+    self.to=nil
+    local con_from={{text="Nothing"}}
+    local con_to={{text="Nothing"}}
+    for k,v in pairs(nodesinrange) do
+        table.insert(con_from,{text=v.nodeType.name,pos=v.pos,is_node=true,node=v})
+        table.insert(con_to,{text=v.nodeType.name,pos=v.pos,is_node=true,node=v})
+    end
+    for k,v in pairs(bldinrange) do
+        table.insert(con_to,{text=utils.call_with_string(v,"getName"),pos=utils.getBuildingCenter(v),is_node=false,build=v})
+    end
+    local mainPage=widgets.Panel{
+        subviews={
+                widgets.Label{
+                text={"Arcane Connector","\n",
+                {text=" : connect from node",key='CUSTOM_A',on_activate=self:callback("connectFrom")},"\n",
+                {text=" : connect to building/node",key='CUSTOM_B',on_activate=self:callback("connectTo")}}
+                ,frame = {l=1,t=1,yalign=0}}
+                }
+            }
+    local connectFromPage=widgets.Panel{
+        subviews={widgets.Label{text="Connect from:",frame = {l=1,t=1,yalign=0}},
+                  widgets.List{choices=con_from,on_select=self:callback("centerOn"),on_submit=self:callback("setFrom"),frame = {l=1,t=3,yalign=0}}
+                  }
+        }
+    local connectToPage=widgets.Panel{
+        subviews={widgets.Label{text="Connect to:",frame = {l=1,t=1,yalign=0}},
+                  widgets.List{choices=con_to,on_select=self:callback("centerOn"),on_submit=self:callback("setTo"),frame = {l=1,t=3,yalign=0}}
+                  }
+        }
+    local pages=widgets.Pages{subviews={mainPage,connectFromPage,connectToPage},view_id="pages"}
+    self:addviews{
+        pages
+    }
+end
+function ConnectorViewer:setFrom(index,choice)
+    self.curNode=nil --choice.node
+    if choice.text~="Nothing" then
+        connectFromNode(self.building,choice.node.id)
+    else
+        connectFromNode(self.building,-1)
+    end
+    self:readConnection()
+    self:mainScreen()
+end
+function ConnectorViewer:setTo(index,choice)
+    if choice.text=="Nothing" then
+        connectToNode(self.building,-1)
+    elseif choice.is_node then
+        connectToNode(self.building,choice.node.id)
+    elseif not choice.is_node then
+        connectToBuilding(self.building,choice.build.id)
+    end
+    self:readConnection()
+    self:mainScreen()
+end
+function ConnectorViewer:centerViewOn(pos)
+    if pos==nil then
+        pos=utils.getBuildingCenter(self.building)
+    end
+    local cursor = guidm.getCursorPos()
+    if cursor then
+        guidm.setCursorPos(pos)
+    else
+        self.cursor = pos
+    end
+    self:getViewport():centerOn(pos):set()
+end
+function ConnectorViewer:centerOn(index,choice)
+    self.curNode=nil
+    if choice.text=="Nothing" then
+        if self.subviews.pages~=nil and self.subviews.pages:getSelected()~=1 then
+            self:centerViewOn()
+        end
+    else
+        self:centerViewOn(choice.pos)
+        if choice.is_node then
+            self.curNode=choice.node
+        end
+        --is node?
+    end
+end
+function ConnectorViewer:connectFrom()
+    self.subviews.pages:setSelected(2)
+end
+function ConnectorViewer:connectTo()
+    self.subviews.pages:setSelected(3)
 end
 function ConnectorViewer:connectionStatus()
     return true, "Not connected"
 end
 function ConnectorViewer:onRenderBody(dc)
     dc:clear()
-    dc:pen(COLOR_WHITE):seek(1,1):string("Arcane connector"):pen(COLOR_GREY)
+    --[[dc:pen(COLOR_WHITE):seek(1,1):string("Arcane connector"):pen(COLOR_GREY)
     local ok, msg=self:connectionStatus()
     if ok then
         dc:seek(1,3):string(msg)
-        dc:seek(1,4):key('CUSTOM_A'):string(": connect to node")
-        dc:seek(1,5):key('CUSTOM_B'):string(": connect to building")
+        dc:seek(1,4):key('CUSTOM_A'):string(": connect from node")
+        dc:seek(1,5):key('CUSTOM_B'):string(": connect to building/node")
         dc:seek(1,7):string(string.format("Nodes in range:%d",#self.nodes))
         dc:seek(1,8):string(string.format("Arcane acceptors in range:%d",#self.buildings))
     else
         dc:seek(1,3):string(msg)
-    end
+    end]]
+    --[[
+        line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
+    ]]
+    local view = self:getViewport()
+    local map = self.df_layout.map
+    local map_dc = gui.Painter.new(map)
     
-
+    if self.curNode~=nil then
+        
+        local p=view:tileToScreen(self.curNode.pos)
+        --print((p.x+p.y+dfhack.getTickCount()/1000)%#tilemess+1)
+        renderNode(map_dc,self.curNode,p)
+    end
+    local cp=view:tileToScreen(utils.getBuildingCenter(self.building))
+    if self.connections.from~=nil then
+        local p=view:tileToScreen(self.connections.from.pos)
+        renderNode(map_dc,self.connections.from,p)
+        line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
+    end
+    if self.connections.to~=nil then
+        if self.connections.to.is_node then
+            local p=view:tileToScreen(self.connections.to.pos)
+            renderNode(map_dc,self.connections.to,p)
+            line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
+        else
+            local p=view:tileToScreen(utils.getBuildingCenter(self.connections.to.build))
+            line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
+        end
+    end
+    if self.connections.to~= nil or self.connections.from ~=nil then
+        local cursor_pos=view:tileToScreen(guidm.getCursorPos())
+        map_dc:seek(cursor_pos.x,cursor_pos.y):char('X', COLOR_YELLOW)
+        if cp.z==0 then
+            map_dc:seek(cp.x,cp.y):char('X', COLOR_GREEN)
+        end
+    end
     dc:seek(1, math.max(dc:cursorY(), 21)):pen(COLOR_WHITE)
     dc:key('LEAVESCREEN'):string(": Back, ")
 end
+function ConnectorViewer:mainScreen()
+    self.subviews.pages:setSelected(1)
+    self:centerViewOn()
+end
 function ConnectorViewer:onInput(keys)
     if keys.LEAVESCREEN then
-        self:dismiss()
-        self:sendInputToParent('LEAVESCREEN')
+        if self.subviews.pages:getSelected()~=1 then
+            self:mainScreen()
+        else
+            self:dismiss()
+            self:sendInputToParent('LEAVESCREEN')
+        end
+    
     --elseif keys.SELECT then
         --self:showCursor(self.cursor~=nil)
-    elseif self:simulateCursorMovement(keys) then
+    
+    elseif self.subviews.pages:getSelected()==1 and self:simulateCursorMovement(keys) then
         self:updateBuilding()
     end
+    self.super.onInput(self,keys)
 end
 
 ManaView = defclass(ManaView, guidm.MenuOverlay)
@@ -345,29 +475,8 @@ function ManaView:updateNode()
     end
     self.cur_node=nil
 end
-function ManaView:renderNode(dc,node,screenpos)
-    local col=node.nodeType.color
-    local dz=screenpos.z --delta z
-    if math.abs(dz)<node.size then
-        for i=-node.size,node.size do
-            for j=-node.size,node.size do
-                if math.abs(i)+math.abs(j)+math.abs(dz)<node.size then
-                    local tx,ty
-                    tx=screenpos.x+i
-                    ty=screenpos.y+j
-                    local tile=tilemess[math.floor(tx+ty+dfhack.getTickCount()/100+tx*ty/5)%#tilemess+1]
-                    dc:seek(tx,ty):char(tile, col)
-                end
-            end
-        end
-    end
-end
-function ManaView:renderLine(dc,x,y,z)
-    local chars={'>','#','<'}
-    if z>=-1 and z<=1 then
-        dc:seek(x,y):char(chars[z+2])
-    end
-end
+
+
 function ManaView:onRenderNodes(dc)
     local view = self:getViewport()
     local map = self.df_layout.map
@@ -378,10 +487,7 @@ function ManaView:onRenderNodes(dc)
         local p=view:tileToScreen(v.pos)
         
         --print((p.x+p.y+dfhack.getTickCount()/1000)%#tilemess+1)
-        self:renderNode(map_dc,v,p)
-        if k==1 then
-            line(dfhack.curry(self.renderLine,self,map_dc),p.x,p.y,p.z,cp.x,cp.y,cp.z)
-        end
+        renderNode(map_dc,v,p)
     end
     local cursor = guidm.getCursorPos()
     if cursor then
@@ -489,7 +595,7 @@ function showMain(shop,call_native)
     end
 end
 function loadWorkshopTypes()
-    customShops[getShop("ARCANE_VIEWER")]=ShopViewer
+    customShops[getShop("ARCANE_VIEWER")]=OrbViewer
     customShops[getShop("ARCANE_BRIDGE1TO1")]=ConnectorViewer
     acceptsArcane["ARCANE_VIEWER"]=true
     acceptsArcane["ARCANE_BRIDGE1TO1"]=true
