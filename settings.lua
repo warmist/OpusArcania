@@ -22,9 +22,10 @@ GEM_DEFAULT={10,10,35}
 ORE_DAMPENING=0.75  -- ores are that much less good
 WEAR_TICKS = 806400 --one wear level
 WEAR_OVERCHARGE=WEAR_TICKS/20 
-WEAR_MULTIPLIER=5    --wear multiplier for overchared
+WEAR_MULTIPLIER=5    --wear multiplier for overcharged
 PERSIST_OVERFLOW=0.1 --amount mana saved in overflow
 PERSIST_FLOW=0.01    --amount mana saved in normal flow
+PERSIST_TRANSFORM=20 --minimal amount required to transform into mana type crystal
 MANA_BURN=0.8 -- amount mana lost if item is overcharged
 NODE_CHANCE_BYSIZE=15 -- max size=15, so if set to 30 it will get triggered each other sweep
 NODE_ACTIVITY=1 --x Size

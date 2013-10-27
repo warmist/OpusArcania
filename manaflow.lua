@@ -103,7 +103,7 @@ function addManaItem(item,mana,manaType)
     if mana==0 then return 0,false; end
     local cond,mass,persist,transform=table.unpack(matlist[item:getActualMaterial()][item:getActualMaterialIndex()])
     local hold=ManaHold{target=item}
-    if hold:getSum()+mana > persist then
+    if hold:getSum()+mana > persist then -- overcharging
         local over=(hold:getSum()+mana)-persist
         hold:add(manaType,mana-over)
         if transform~=nil then
@@ -247,7 +247,7 @@ function connectionGraph:add(from,to)
             local trg_build=df.building.find(to.id)
             if trg_build==nil then return false end
             self:connectToBuilding(curBuilding,to.id)
-            self:connectToBuilding(trg_build,curBuilding.id)
+            --self:connectFromBuilding(trg_build,curBuilding.id)
         end
     end
     return true

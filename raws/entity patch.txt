@@ -1,4 +1,3 @@
-    >>Opus Arcania patch
     [POSITION:ARCANIST]
 		[NAME:arcanist:arcanists]
 		[SITE]
@@ -18,4 +17,3 @@
     [PERMITTED_BUILDING:ARCANE_BRIDGE1TO0]
     [PERMITTED_BUILDING:ARCANE_BRIDGE1TOGAP1]
     [PERMITTED_REACTION:LUA_HOOK_BRING_ITEM]
-    <<End patch

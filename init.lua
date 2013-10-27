@@ -43,9 +43,7 @@ function mapUnloaded()
     dfhack.timeout_active(modTicker,nil)
     --destroy graphs (optional)
 end
-events[SC_MAP_LOADED]=mapLoaded
-events[SC_MAP_UNLOADED]=mapUnloaded
-events[SC_WORLD_LOADED]=worldLoaded
+
 function installHooks()
     require("plugins.eventful").onWorkshopFillSidebarMenu.arcane=shopDispatch
     require("plugins.eventful").onReactionComplete.arcane=reactionDispatch
@@ -68,7 +66,12 @@ end
 if graph then
     mapUnloaded()
 end
+
+events[SC_MAP_LOADED]=mapLoaded
+events[SC_MAP_UNLOADED]=mapUnloaded
+events[SC_WORLD_LOADED]=worldLoaded
 events[SC_WORLD_UNLOADED]=removeHooks
+
 if dfhack.isWorldLoaded() then
     worldLoaded()
 end

@@ -1,0 +1,1 @@
+dofile("hack/scripts/OpusArcania/init.lua")
